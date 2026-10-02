@@ -1,0 +1,74 @@
+# Byte-compiled / optimized / virtual env
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# GCP Keys & Credentials (CRITICAL SECURITY)
+*.json
+!data_generator/configs/*.json
+sa-key*.json
+*credentials*.json
+*service_account*.json
+.env
+.env.*
+!.env.example
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# Airflow
+airflow/logs/
+airflow/airflow.cfg
+airflow/airflow.db
+airflow/webserver_config.py
+
+# Spark & Java
+derby.log
+metastore_db/
+spark-warehouse/
+
+# Data outputs & local lakehouse storage
+data/
+raw/
+silver/
+gold/
+deadletter/
+*.parquet
+*.csv
+*.gz
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
