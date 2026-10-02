@@ -1,0 +1,24 @@
+{
+  "seed": 42,
+  "default_record_count": 10000,
+  "rates": {
+    "orders": {
+      "null_merchant_id_rate": 0.03,
+      "future_timestamp_rate": 0.02,
+      "invalid_negative_declared_value_rate": 0.02,
+      "corrupted_postal_code_rate": 0.02
+    },
+    "wms_picks": {
+      "negative_or_zero_weight_rate": 0.035,
+      "missing_order_id_rate": 0.02,
+      "inverted_timestamps_rate": 0.025,
+      "extreme_weight_anomaly_rate": 0.01
+    },
+    "carrier_events": {
+      "network_duplicate_rate": 0.05,
+      "late_arriving_event_rate": 0.04,
+      "corrupted_event_id_rate": 0.015,
+      "missing_timestamp_rate": 0.01
+    }
+  }
+}
