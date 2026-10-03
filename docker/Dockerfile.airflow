@@ -1,0 +1,28 @@
+FROM apache/airflow:2.8.3-python3.10
+
+USER root
+
+# Install OpenJDK-17 and build tools for PySpark and dbt BigQuery
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        openjdk-17-jre-headless \
+        procps \
+        curl \
+        git \
+        build-essential && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set JAVA_HOME
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+USER airflow
+
+# Install Python requirements for Airflow tasks, PySpark client, dbt-bigquery, and validation
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+    apache-airflow-providers-google==10.15.0 \
+    apache-airflow-providers-apache-spark==4.7.1 \
+    pyspark==3.5.1 \
+    dbt-bigquery==1.7.7

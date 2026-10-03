@@ -1,0 +1,19 @@
+FROM bitnami/spark:3.5.1
+
+USER root
+
+# Install Python requirements for custom PySpark ETL scripts
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        procps && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+USER 1001
+
+ENV SPARK_MODE=master
+WORKDIR /opt/bitnami/spark
