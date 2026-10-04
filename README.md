@@ -1,6 +1,6 @@
 # CloudScale — Enterprise Cloud Data Migration & Analytics Platform
 
-[![CI Pipeline](https://github.com/your-username/cloudscale/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/cloudscale/actions)
+[![CI Pipeline](https://github.com/GitItDone19/CloudScale/actions/workflows/ci.yml/badge.svg)](https://github.com/GitItDone19/CloudScale/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Apache Spark](https://img.shields.io/badge/Apache%20Spark-3.5-E25A1C.svg)](https://spark.apache.org/)
