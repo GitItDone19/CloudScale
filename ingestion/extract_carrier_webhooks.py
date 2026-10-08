@@ -14,7 +14,7 @@ Locally it reads from the Phase 2 generated data:
     data/raw/carrier_events/dt={date}/events_{YYYYMMDD}.json
 
 Landing strategy:
-    - Partitioned by ingestion date (NOT scan event time) → data/raw/carrier_events/dt={date}/
+    - Partitioned by ingestion date (NOT scan event time) → data/bronze/carrier_events/dt={date}/
     - Decouples ingestion_time from event_time to handle late-arriving scans (Phase 3 challenge).
     - Files are immutable once landed; deduplication and late-arrival reconciliation
       happen downstream in PySpark (Phase 5) and dbt incremental models (Phase 7).
@@ -92,7 +92,8 @@ def extract_carrier_events(
     )
 
     total_events = sum(
-        r.get("records_landed", 0) for r in results
+        r.get("records_landed", 0)
+        for r in results
         if isinstance(r.get("records_landed"), int) and r["records_landed"] > 0
     )
     logger.info(
@@ -131,10 +132,13 @@ def run(
         "partition_date": partition_date,
         "run_timestamp": datetime.now(timezone.utc).isoformat(),
         "files_processed": len(results),
-        "files_landed": sum(1 for r in results if r.get("status") in ("landed", "overwritten")),
+        "files_landed": sum(
+            1 for r in results if r.get("status") in ("landed", "overwritten")
+        ),
         "files_skipped": sum(1 for r in results if r.get("status") == "skipped"),
         "total_events": sum(
-            r.get("records_landed", 0) for r in results
+            r.get("records_landed", 0)
+            for r in results
             if isinstance(r.get("records_landed"), int) and r["records_landed"] > 0
         ),
         "results": results,
@@ -161,8 +165,8 @@ def main():
     parser.add_argument(
         "--bronze-root",
         type=str,
-        default="data/raw",
-        help="Bronze landing zone root directory (default: data/raw)",
+        default="data/bronze",
+        help="Bronze landing zone root directory (default: data/bronze)",
     )
     parser.add_argument(
         "--source-raw",

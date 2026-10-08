@@ -12,7 +12,7 @@ Locally it reads from the Phase 2 generated data:
     data/raw/wms_picks/dt={date}/wms_dispatch_{YYYYMMDD}.csv
 
 Landing strategy:
-    - Partitioned by dispatch date → data/raw/wms_picks/dt={date}/
+    - Partitioned by dispatch date → data/bronze/wms_picks/dt={date}/
     - Each CSV file is landed atomically with checksum verification.
     - Re-running for the same partition date is idempotent (no-op if unchanged).
 
@@ -89,7 +89,8 @@ def extract_wms_picks(
     )
 
     total_records = sum(
-        r.get("records_landed", 0) for r in results
+        r.get("records_landed", 0)
+        for r in results
         if isinstance(r.get("records_landed"), int) and r["records_landed"] > 0
     )
     logger.info(
@@ -117,9 +118,7 @@ def run(
     Returns:
         Summary dict.
     """
-    logger.info(
-        f"=== WMS CSV Extractor START | partition_date={partition_date} ==="
-    )
+    logger.info(f"=== WMS CSV Extractor START | partition_date={partition_date} ===")
 
     results = extract_wms_picks(source_raw, bronze_root, partition_date, overwrite)
 
@@ -128,10 +127,13 @@ def run(
         "partition_date": partition_date,
         "run_timestamp": datetime.now(timezone.utc).isoformat(),
         "files_processed": len(results),
-        "files_landed": sum(1 for r in results if r.get("status") in ("landed", "overwritten")),
+        "files_landed": sum(
+            1 for r in results if r.get("status") in ("landed", "overwritten")
+        ),
         "files_skipped": sum(1 for r in results if r.get("status") == "skipped"),
         "total_records": sum(
-            r.get("records_landed", 0) for r in results
+            r.get("records_landed", 0)
+            for r in results
             if isinstance(r.get("records_landed"), int) and r["records_landed"] > 0
         ),
         "results": results,
@@ -158,8 +160,8 @@ def main():
     parser.add_argument(
         "--bronze-root",
         type=str,
-        default="data/raw",
-        help="Bronze landing zone root directory (default: data/raw)",
+        default="data/bronze",
+        help="Bronze landing zone root directory (default: data/bronze)",
     )
     parser.add_argument(
         "--source-raw",

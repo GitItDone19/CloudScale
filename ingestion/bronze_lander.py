@@ -8,24 +8,26 @@ Design Rules:
   - Partitioned output path: {bronze_root}/{source}/{dt=YYYY-MM-DD}/{filename}
   - Idempotency: Re-running for the same partition is a no-op if the file
     already exists and its SHA-256 checksum matches the source.
-  - Atomic write: Files are staged to a `.tmp` sibling before being renamed
+  - Atomic write: Files are staged to a unique sibling before atomic publication
     so partial uploads never corrupt the landing zone.
   - Immutability: Existing partition files are NEVER modified; only new
-    partitions are written.
+    partitions are written unless overwrite is explicitly requested.
   - Metadata sidecar: Each landed file gets a `{filename}.meta.json` sidecar
     recording ingestion_timestamp, source_path, record_count, and checksum.
 
-Supports both:
-  - Local filesystem (default, used during Docker Compose development)
-  - GCS uploads (activated by setting GCS_BUCKET env variable)
+Storage support:
+  - Local filesystem, used during Docker Compose development.
+  - GCS uploads are planned; this utility currently supports local paths only.
 """
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import logging
 import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +37,7 @@ logger = logging.getLogger("bronze_lander")
 # ---------------------------------------------------------------------------
 # Checksum helpers
 # ---------------------------------------------------------------------------
+
 
 def _sha256(path: Path) -> str:
     """Return hex SHA-256 digest of a file."""
@@ -46,10 +49,10 @@ def _sha256(path: Path) -> str:
 
 
 def _count_lines(path: Path, has_header: bool = True) -> int:
-    """Count data rows in a flat file (subtracts 1 header line if applicable)."""
+    """Count CSV records, including quoted fields containing newlines."""
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            total = sum(1 for _ in fh)
+        with open(path, "r", encoding="utf-8", errors="replace", newline="") as fh:
+            total = sum(1 for _ in csv.reader(fh))
         return max(0, total - (1 if has_header else 0))
     except Exception:
         return -1
@@ -68,6 +71,7 @@ def _count_ndjson(path: Path) -> int:
 # Core landing function
 # ---------------------------------------------------------------------------
 
+
 def land_file(
     source_path: Path,
     bronze_root: Path,
@@ -82,7 +86,7 @@ def land_file(
     Args:
         source_path:    Absolute path to the source file to ingest.
         bronze_root:    Root directory of the Bronze landing zone
-                        (e.g. Path("data/raw")).
+                        (e.g. Path("data/bronze")).
         source_name:    Logical source name used as the sub-directory
                         (e.g. "postgres_orders", "wms_picks", "carrier_events").
         partition_date: ISO date string for the Hive partition (YYYY-MM-DD).
@@ -93,6 +97,19 @@ def land_file(
     Returns:
         dict: Ingestion result metadata (status, records, checksum, path).
     """
+    if (
+        datetime.strptime(partition_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+        != partition_date
+    ):
+        raise ValueError("partition_date must use YYYY-MM-DD")
+    if (
+        not source_name
+        or source_name in (".", "..")
+        or any(c in source_name for c in "/\\")
+    ):
+        raise ValueError("source_name must be a single directory name")
+    if file_type not in ("csv", "json", "ndjson"):
+        raise ValueError("file_type must be csv, json, or ndjson")
     ingestion_ts = datetime.now(timezone.utc).isoformat()
 
     # Build target partition directory
@@ -101,44 +118,59 @@ def land_file(
 
     target_path = partition_dir / source_path.name
     meta_path = partition_dir / f"{source_path.name}.meta.json"
-    tmp_path = partition_dir / f".{source_path.name}.tmp"
+    existed = target_path.exists()
 
     source_checksum = _sha256(source_path)
 
-    # Idempotency check: skip if file exists and checksum matches
-    if target_path.exists() and not overwrite:
-        existing_meta: dict = {}
+    # Check the actual landed bytes rather than trusting a stale sidecar.
+    if existed and not overwrite:
+        if _sha256(target_path) != source_checksum:
+            raise FileExistsError(
+                f"Bronze conflict at {target_path}; use a new partition or explicit overwrite"
+            )
         if meta_path.exists():
             try:
-                with open(meta_path, "r") as f:
-                    existing_meta = json.load(f)
-            except Exception:
-                pass
-        if existing_meta.get("checksum_sha256") == source_checksum:
-            logger.info(
-                f"[SKIP] Idempotency: {target_path.name} already landed in "
-                f"dt={partition_date} with matching checksum."
-            )
-            return {
-                "status": "skipped",
-                "source": str(source_path),
-                "target": str(target_path),
-                "partition_date": partition_date,
-                "checksum_sha256": source_checksum,
-                "ingestion_timestamp": ingestion_ts,
-                "records_landed": existing_meta.get("records_landed", -1),
-            }
-
-    # Atomic write: copy to .tmp then rename
-    try:
-        shutil.copy2(source_path, tmp_path)
-        tmp_path.rename(target_path)
-    except Exception as exc:
-        if tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"Atomic write failed for {source_path} -> {target_path}: {exc}"
-        ) from exc
+                existing_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                existing_meta = {}
+            if (
+                isinstance(existing_meta, dict)
+                and existing_meta.get("checksum_sha256") == source_checksum
+                and existing_meta.get("ingestion_timestamp")
+            ):
+                return {
+                    "status": "skipped",
+                    "source": str(source_path),
+                    "target": str(target_path),
+                    "partition_date": partition_date,
+                    "checksum_sha256": source_checksum,
+                    "ingestion_timestamp": existing_meta["ingestion_timestamp"],
+                    "records_landed": existing_meta.get("records_landed", -1),
+                }
+        # A previous attempt may have published data before writing metadata.
+        # Repair the sidecar without modifying the landed file.
+    else:
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                dir=partition_dir, prefix=".landing-", delete=False
+            ) as staged:
+                tmp_path = Path(staged.name)
+            shutil.copy2(source_path, tmp_path)
+            if _sha256(tmp_path) != source_checksum:
+                raise RuntimeError("Source changed during landing")
+            if overwrite:
+                tmp_path.replace(target_path)
+            else:
+                # Hard-link publication fails if another writer won the race.
+                target_path.hardlink_to(tmp_path)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Atomic write failed for {source_path} -> {target_path}: {exc}"
+            ) from exc
+        finally:
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
 
     # Count records for metadata
     if file_type in ("ndjson", "json"):
@@ -158,10 +190,23 @@ def land_file(
         "ingestion_timestamp": ingestion_ts,
         "overwrite": overwrite,
     }
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(meta, f, indent=2)
+    meta_tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=partition_dir,
+            prefix=".metadata-",
+            delete=False,
+        ) as f:
+            meta_tmp = Path(f.name)
+            json.dump(meta, f, indent=2)
+        meta_tmp.replace(meta_path)
+    finally:
+        if meta_tmp is not None:
+            meta_tmp.unlink(missing_ok=True)
 
-    action = "overwritten" if (overwrite and target_path.exists()) else "landed"
+    action = "overwritten" if (overwrite and existed) else "landed"
     logger.info(
         f"[OK] {action.upper()} {source_path.name} -> {target_path} "
         f"({records_landed} records, checksum={source_checksum[:12]}...)"
@@ -204,13 +249,10 @@ def land_directory(
     """
     results = []
     matched = sorted(
-        f for f in source_dir.iterdir()
-        if f.is_file() and f.suffix in file_extensions
+        f for f in source_dir.iterdir() if f.is_file() and f.suffix in file_extensions
     )
     if not matched:
-        logger.warning(
-            f"[WARN] No {file_extensions} files found in {source_dir}"
-        )
+        logger.warning(f"[WARN] No {file_extensions} files found in {source_dir}")
         return results
 
     for source_file in matched:

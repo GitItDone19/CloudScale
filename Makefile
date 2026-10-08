@@ -27,7 +27,7 @@ logs:
 	docker compose logs -f
 
 data-gen:
-	python -m data_generator.generate_legacy_data --orders 1000
+	python -m data_generator.generate_legacy_data --count 1000
 
 test:
 	python -m pytest tests/

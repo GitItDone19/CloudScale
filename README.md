@@ -68,3 +68,27 @@ cloudscale/
 
 ## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Local Bronze ingestion (phase 4)
+
+Generate source files, then copy them into a separate Bronze landing zone:
+
+```powershell
+python -m data_generator.generate_legacy_data --count 1000 --date 2026-10-01
+python -m ingestion.extract_postgres --date 2026-10-01
+python -m ingestion.extract_wms_csv --date 2026-10-01
+python -m ingestion.extract_carrier_webhooks --date 2026-10-01
+python -m pytest tests -q
+```
+
+Sources stay in `data/raw`; landed files and metadata are stored in
+`data/bronze/{source}/dt=2026-10-01/`. Repeat the three extraction commands
+to verify that identical files are skipped. Changed files in an existing
+partition raise an error; use a new partition for a new snapshot. The explicit
+`--overwrite` option replaces an existing file when deliberately requested.
+Bronze preserves dirty records and duplicate events for phase 5 to process.
+These extractors currently read generated local files; live PostgreSQL, FTP,
+webhook endpoints, and GCS uploads are future integrations.
+
+See the [phase 3 and 4 learning report](docs/PHASE_3_4_REPORT.md) for the
+implementation status, validation results, and key concepts.
