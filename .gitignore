@@ -72,3 +72,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Phase 5 local Spark environment
+.venv-spark/

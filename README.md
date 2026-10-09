@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/Current_stage-Local_Bronze-0F766E?style=flat-square" alt="Current stage: local Bronze">
+  <img src="https://img.shields.io/badge/Current_stage-Local_Silver-0F766E?style=flat-square" alt="Current stage: local Silver">
   <img src="https://img.shields.io/badge/Infrastructure-Docker_Compose-2496ED?style=flat-square" alt="Docker Compose">
   <img src="https://img.shields.io/badge/Target-PySpark_%2B_dbt_%2B_BigQuery-7C3AED?style=flat-square" alt="Target: PySpark, dbt and BigQuery">
 </p>
@@ -30,7 +30,7 @@ CloudScale is a hands-on data engineering project that brings these inputs into 
 
 ## Project status
 
-**The local generator and Bronze ingestion are implemented and tested.** Planned components are labeled in the diagrams.
+**The local generator, Bronze ingestion, and PySpark Silver processing are implemented.** Planned components are labeled in the diagrams.
 
 | Component | Current state |
 | --- | --- |
@@ -38,21 +38,21 @@ CloudScale is a hands-on data engineering project that brings these inputs into 
 | Synthetic dirty data generator | Implemented |
 | Docker stack: Airflow, PostgreSQL, Spark | Configured; container startup and DAG execution unverified |
 | Local Bronze ingestion | Implemented and tested |
-| PySpark validation, deduplication, and Silver | Planned — phase 5 |
+| PySpark validation, deduplication, and Silver | Implemented locally — phase 5 |
 | BigQuery, dbt, full orchestration, CI, dashboards | Planned — phases 6–12 |
 
 Extractors currently read **generated local files**. Live PostgreSQL, FTP, webhook endpoints, and GCS uploads are future integrations. Checks run locally; automated CI is planned.
 
 ## Architecture
 
-![Platform architecture: generated sources flow into implemented local Bronze, followed by planned Silver processing, a warehouse, and dashboards.](docs/assets/platform-architecture.svg)
+![Platform architecture: generated sources flow into implemented local Bronze, followed by local Silver processing and a planned warehouse and dashboards.](docs/assets/platform-architecture.svg)
 
 The **medallion architecture** gives each data layer a specific purpose:
 
 | Layer | Purpose | Tooling | Example |
 | --- | --- | --- | --- |
 | **Bronze** | Preserve original input for replay | Local files today; GCS planned | Warehouse CSV with its invalid weights intact |
-| **Silver** | Validate, standardize, deduplicate | PySpark + Parquet, planned | Events with valid IDs and timestamps |
+| **Silver** | Validate, standardize, deduplicate | PySpark + Parquet, local | Events with valid IDs and timestamps |
 | **Gold** | Connect business entities | BigQuery + dbt, planned | Shipment facts linked to carrier dimensions |
 | **Analytics marts** | Produce focused business measures | dbt + BI, planned | Daily carrier performance and route margins |
 
@@ -62,7 +62,7 @@ A **dead-letter queue (DLQ)** stores rejected rows and their error reasons for i
 
 ![Bronze ingestion: fingerprint the source, check the destination, land new files, skip identical input, and reject conflicts unless overwrite is explicit.](docs/assets/bronze-ingestion.svg)
 
-**Collect original data safely before cleaning it.** Dirty values and duplicate events stay in Bronze for phase 5 to process.
+**Collect original data safely before cleaning it.** Dirty values and duplicate events stay in Bronze; phase 5 processes a separate copy into Silver.
 
 - **Partitions:** `dt=2026-10-01` groups files for a batch date.
 - **Idempotency:** identical reruns preserve existing files and metadata.
@@ -120,7 +120,32 @@ Repeat the three extraction commands. Identical files should report `skipped`, k
 python -m pytest tests -q
 ```
 
-At the phase 4 checkpoint, **14 tests pass**, covering generation, ingestion, and DAG Python syntax. The syntax check does not prove that Airflow services run successfully.
+**23 tests pass in the Spark runner**, including the original 14 checks and nine new Spark transformation and Parquet integration cases. Run the full suite using the Spark container below; without PySpark installed, Spark test modules are skipped. The DAG syntax check does not prove that Airflow services run successfully.
+
+## Process Bronze into Silver — phase 5
+
+The shipment job validates orders, merchant snapshots, and warehouse picks. The carrier job validates JSON events and removes duplicate scans. Both write **Snappy Parquet**: a compressed, column-oriented format designed for analytics.
+
+After completing the Bronze quick start, start Docker and run:
+
+```powershell
+docker compose --profile silver build spark-jobs
+docker compose --profile silver run --rm spark-jobs -m spark.jobs.process_shipments --date 2026-10-01
+docker compose --profile silver run --rm spark-jobs -m spark.jobs.process_carrier_events --date 2026-10-01
+docker compose --profile silver run --rm spark-jobs -m pytest tests -q
+```
+
+This isolated runner uses Spark's `local[2]` mode and does not start the Airflow stack. For native Python/Java setup, see the [phase 5 guide](docs/PHASE_5_REPORT.md).
+
+| Output | Contents |
+| --- | --- |
+| `data/silver/{source}/dt=2026-10-01/` | Clean, typed records |
+| `data/deadletter/{source}/dt=2026-10-01/` | Rejected records, original payload representation, and error codes |
+| `data/silver/_audit/dt=2026-10-01/` | Input, clean, rejected, and removed-duplicate counts; job status |
+
+A negative parcel weight goes to the dead-letter queue with `ERR_INVALID_WEIGHT`. A repeated valid courier scan is deduplicated by event ID within the batch. Late arrivals keep their scan and receipt timestamps. Both `tracking_number` and the alternative `tracking_code` are supported.
+
+Reruns replace only the selected output date partition, leaving Bronze and other dates intact. Outputs publish per dataset; consume the batch only after its audit status is `success`. Cross-date event reconciliation, joined warehouse facts, currency conversion, and full Airflow orchestration remain later phases.
 
 ## Local development design
 
@@ -148,8 +173,8 @@ The configured Airflow UI is at [localhost:8080](http://localhost:8080), with lo
 | 2 | Synthetic dirty data generation | Implemented |
 | 3 | Local Docker development stack | Configured; runtime check pending |
 | 4 | Bronze storage and ingestion | Implemented and tested locally |
-| **5 — next** | **PySpark cleansing and Silver datasets** | **Planned** |
-| 6 | BigQuery datasets and staging | Planned |
+| 5 | PySpark cleansing and Silver datasets | Implemented locally |
+| **6 — next** | **BigQuery datasets and staging** | **Planned** |
 | 7 | dbt dimensional models and marts | Planned |
 | 8 | Full Airflow orchestration | Planned |
 | 9 | Data quality and failure alerts | Planned |
@@ -168,22 +193,25 @@ CloudScale/
 │   └── plugins/alert_handlers.py    # Alert callback code
 ├── data_generator/                  # Synthetic sources and anomaly configuration
 ├── ingestion/                       # Local Bronze landing and extractors
+├── spark/                           # Silver jobs, schemas, quality rules, output helpers
 ├── docker/                          # Airflow and Spark image definitions
 ├── docs/
 │   ├── assets/                      # README diagrams + regeneration script
 │   ├── ARCHITECTURE_AND_ROADMAP.md
 │   ├── data_dictionary.md
-│   └── PHASE_3_4_REPORT.md
+│   ├── PHASE_3_4_REPORT.md
+│   └── PHASE_5_REPORT.md
 ├── tests/
 │   ├── unit/                        # Generator and ingestion tests
 │   └── integration/                 # DAG syntax validation
 ├── .env.example                     # Example local configuration
 ├── docker-compose.yml               # Local service topology
 ├── Makefile                         # Developer shortcuts
-└── requirements.txt                 # Full project dependencies
+├── requirements.txt                 # Full project dependencies
+└── requirements-spark.txt           # Minimal native Spark/test dependencies
 ```
 
-`spark/` jobs, the `dbt/` project, and `.github/workflows/` are planned additions. Generated data and credentials are excluded from version control.
+The `dbt/` project and `.github/workflows/` are planned additions. Generated data and credentials are excluded from version control.
 
 ## Documentation
 
@@ -192,6 +220,7 @@ CloudScale/
 | [Architecture and roadmap](docs/ARCHITECTURE_AND_ROADMAP.md) | Target platform, business context, and phase-by-phase learning plan |
 | [Data dictionary](docs/data_dictionary.md) | Source fields, validation rules, and intended warehouse relationships |
 | [Phase 3 and 4 report](docs/PHASE_3_4_REPORT.md) | What was implemented, tested, and what remains |
+| [Phase 5 guide](docs/PHASE_5_REPORT.md) | Spark setup, rules, outputs, reruns, and limitations |
 | [Visual sources](docs/assets/generate_visuals.py) | Regenerate all four SVGs with `python docs/assets/generate_visuals.py` |
 
 The architecture documents describe the target system. The status table above describes the current implementation.

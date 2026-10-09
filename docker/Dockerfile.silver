@@ -1,0 +1,14 @@
+# Reuse the Spark distribution with an explicit Python 3.11 / Java 17 runtime.
+FROM apache/spark:3.5.1-python3 AS spark
+FROM python:3.11-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless procps \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=spark /opt/spark /opt/spark
+RUN useradd --uid 1000 --gid 0 --create-home cloudscale
+RUN pip install --no-cache-dir 'faker>=33.0.0' 'pytest>=8.0.0,<9'
+ENV SPARK_HOME=/opt/spark
+ENV PYTHONPATH=/workspace:/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
+ENV SPARK_LOCAL_IP=127.0.0.1
+ENV PYSPARK_PYTHON=python3
+WORKDIR /workspace
+USER 1000:0

@@ -1,0 +1,4 @@
+# Python 3.10 or 3.11 and Java 17 recommended for the native Spark 3.5 runtime.
+pyspark==3.5.1
+faker>=33.0.0
+pytest>=8.0.0,<9

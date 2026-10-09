@@ -12,6 +12,6 @@ pyarrow>=15.0.0
 pandas>=2.2.0
 
 # Orchestration & Transformations
-pyspark>=3.5.0
+pyspark==3.5.1
 dbt-core>=1.7.0
 dbt-bigquery>=1.7.0

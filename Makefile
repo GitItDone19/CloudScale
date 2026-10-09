@@ -1,4 +1,6 @@
-.PHONY: help up down ps logs test test-unit test-integration data-gen lint clean
+.PHONY: help up down ps logs test test-unit test-integration data-gen silver test-spark lint clean
+
+DATE ?= 2026-10-01
 
 help:
 	@echo "CloudScale - Developer CLI Shortcuts"
@@ -8,6 +10,8 @@ help:
 	@echo "make ps               - Display container status"
 	@echo "make logs             - Stream logs from all containers"
 	@echo "make data-gen         - Generate synthetic dirty data for testing"
+	@echo "make silver DATE=...  - Run both Silver jobs in the isolated Spark container"
+	@echo "make test-spark       - Run the full test suite with Spark"
 	@echo "make test             - Run all unit and integration tests"
 	@echo "make test-unit        - Run unit tests only"
 	@echo "make test-integration - Run DAG integrity tests"
@@ -41,3 +45,10 @@ test-integration:
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+
+silver:
+	docker compose --profile silver run --build --rm spark-jobs -m spark.jobs.process_shipments --date $(DATE)
+	docker compose --profile silver run --rm spark-jobs -m spark.jobs.process_carrier_events --date $(DATE)
+
+test-spark:
+	docker compose --profile silver run --build --rm spark-jobs -m pytest tests -q

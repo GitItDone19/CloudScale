@@ -138,5 +138,19 @@ services:
       - ./spark:/opt/bitnami/spark/jobs
     restart: always
 
+  spark-jobs:
+    profiles: ["silver"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.silver
+    image: cloudscale-silver:3.5.1
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      SPARK_LOCAL_IP: 127.0.0.1
+    entrypoint: ["python3"]
+    command: ["-m", "spark.jobs.process_shipments", "--help"]
+
 volumes:
   postgres-db-volume:

@@ -60,7 +60,7 @@ for x, title, lines, accent, tag in [
         "Refine",
         ["Validate, deduplicate", "and quarantine bad records"],
         BLUE,
-        "PYSPARK / PLANNED",
+        "LOCAL PYSPARK IMPLEMENTED",
     ),
     (
         800,
@@ -79,7 +79,7 @@ s += (
 save(
     "cloudscale-banner.svg",
     "CloudScale: from messy logistics data to trusted analytics",
-    "Collect is implemented locally; PySpark refinement and warehouse analytics are planned.",
+    "Collection and PySpark refinement work locally; warehouse analytics are planned.",
     495,
     s,
 )
@@ -112,7 +112,7 @@ items = [
         "Silver",
         ["PySpark validation", "Event deduplication", "Clean Snappy Parquet"],
         BLUE,
-        "PLANNED",
+        "IMPLEMENTED LOCALLY",
     ),
     (
         910,
@@ -134,7 +134,7 @@ s += box(
     "Dead-letter queue",
     ["Rejected rows + reasons"],
     GOLD,
-    "PLANNED / INVESTIGATE",
+    "LOCAL / INVESTIGATE",
 )
 s += arrow(745, 350, 745, 410)
 s += box(
@@ -168,7 +168,7 @@ s += text(
 save(
     "platform-architecture.svg",
     "CloudScale platform architecture",
-    "Generated sources flow into implemented local Bronze. Planned Silver processing routes rejected rows to a dead-letter queue; BigQuery and dbt supply analytics and dashboards. Full Airflow orchestration is planned.",
+    "Generated sources flow into implemented local Bronze. Local Silver processing routes rejected rows to a dead-letter queue; BigQuery and dbt supply analytics and dashboards. Full Airflow orchestration is planned.",
     645,
     s,
 )
@@ -314,7 +314,7 @@ s += box(
     320,
     170,
     "Spark master + worker",
-    ["Distributed processing services", "Cleansing jobs arrive in phase 5"],
+    ["Distributed processing services", "Local Silver jobs available"],
     PURPLE,
 )
 s += arrow(200, 300, 200, 365, dashed=True)
