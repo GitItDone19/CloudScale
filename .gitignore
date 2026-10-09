@@ -75,3 +75,6 @@ htmlcov/
 
 # Phase 5 local Spark environment
 .venv-spark/
+
+# Local warehouse environment
+.venv-warehouse/

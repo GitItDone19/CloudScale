@@ -1,0 +1,6 @@
+# Minimal warehouse setup, validation, and upload dependencies.
+google-cloud-bigquery>=3.17.0,<4
+google-cloud-storage>=2.14.0,<4
+pyarrow>=15.0.0
+pytest>=8.0.0,<9
+faker>=33.0.0

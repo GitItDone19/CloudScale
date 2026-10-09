@@ -39,7 +39,8 @@ CloudScale is a hands-on data engineering project that brings these inputs into 
 | Docker stack: Airflow, PostgreSQL, Spark | Configured; container startup and DAG execution unverified |
 | Local Bronze ingestion | Implemented and tested |
 | PySpark validation, deduplication, and Silver | Implemented locally — phase 5 |
-| BigQuery, dbt, full orchestration, CI, dashboards | Planned — phases 6–12 |
+| BigQuery staging setup | Implemented and tested offline; live deployment pending |
+| dbt, full orchestration, CI, dashboards | Planned — phases 7–12 |
 
 Extractors currently read **generated local files**. Live PostgreSQL, FTP, webhook endpoints, and GCS uploads are future integrations. Checks run locally; automated CI is planned.
 
@@ -147,6 +148,21 @@ A negative parcel weight goes to the dead-letter queue with `ERR_INVALID_WEIGHT`
 
 Reruns replace only the selected output date partition, leaving Bronze and other dates intact. Outputs publish per dataset; consume the batch only after its audit status is `success`. Cross-date event reconciliation, joined warehouse facts, currency conversion, and full Airflow orchestration remain later phases.
 
+## BigQuery staging setup
+
+The warehouse module prepares four datasets and date-partitioned external tables
+over Silver Parquet in GCS. It generates an offline plan, validates local batches,
+and requires `--apply` for cloud writes or executing verification queries.
+
+```powershell
+python -m warehouse plan --project YOUR_PROJECT_ID --bucket YOUR_BUCKET_NAME
+```
+
+See the [warehouse setup guide](docs/WAREHOUSE_SETUP.md) for dependency installation,
+authentication, publishing, and verification commands. Queries from this module
+require a date filter and enforce a 100 MiB maximum billed scan. A real cloud
+project, colocated bucket, and credentials are still needed for live verification.
+
 ## Local development design
 
 ![Docker development design: shared project files, Airflow webserver and scheduler, PostgreSQL metadata, and Spark services. Runtime validation is pending.](docs/assets/local-development.svg)
@@ -174,7 +190,7 @@ The configured Airflow UI is at [localhost:8080](http://localhost:8080), with lo
 | 3 | Local Docker development stack | Configured; runtime check pending |
 | 4 | Bronze storage and ingestion | Implemented and tested locally |
 | 5 | PySpark cleansing and Silver datasets | Implemented locally |
-| **6 — next** | **BigQuery datasets and staging** | **Planned** |
+| 6 | BigQuery datasets and staging | Setup implemented; cloud verification pending |
 | 7 | dbt dimensional models and marts | Planned |
 | 8 | Full Airflow orchestration | Planned |
 | 9 | Data quality and failure alerts | Planned |
@@ -194,6 +210,7 @@ CloudScale/
 ├── data_generator/                  # Synthetic sources and anomaly configuration
 ├── ingestion/                       # Local Bronze landing and extractors
 ├── spark/                           # Silver jobs, schemas, quality rules, output helpers
+├── warehouse/                       # BigQuery setup, Silver upload, guarded verification
 ├── docker/                          # Airflow and Spark image definitions
 ├── docs/
 │   ├── assets/                      # README diagrams + regeneration script
@@ -208,7 +225,8 @@ CloudScale/
 ├── docker-compose.yml               # Local service topology
 ├── Makefile                         # Developer shortcuts
 ├── requirements.txt                 # Full project dependencies
-└── requirements-spark.txt           # Minimal native Spark/test dependencies
+├── requirements-spark.txt           # Minimal native Spark/test dependencies
+└── requirements-warehouse.txt       # Warehouse SDK and validation dependencies
 ```
 
 The `dbt/` project and `.github/workflows/` are planned additions. Generated data and credentials are excluded from version control.
@@ -221,6 +239,7 @@ The `dbt/` project and `.github/workflows/` are planned additions. Generated dat
 | [Data dictionary](docs/data_dictionary.md) | Source fields, validation rules, and intended warehouse relationships |
 | [Phase 3 and 4 report](docs/PHASE_3_4_REPORT.md) | What was implemented, tested, and what remains |
 | [Phase 5 guide](docs/PHASE_5_REPORT.md) | Spark setup, rules, outputs, reruns, and limitations |
+| [Warehouse setup guide](docs/WAREHOUSE_SETUP.md) | Offline plans, cloud prerequisites, uploads, query limits, and validation |
 | [Visual sources](docs/assets/generate_visuals.py) | Regenerate all four SVGs with `python docs/assets/generate_visuals.py` |
 
 The architecture documents describe the target system. The status table above describes the current implementation.
