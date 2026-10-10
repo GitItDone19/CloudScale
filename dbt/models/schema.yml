@@ -1,0 +1,97 @@
+version: 2
+models:
+  - name: stg_postgres_orders
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: dt
+        data_tests: [not_null]
+  - name: stg_postgres_merchants
+    columns:
+      - name: merchant_id
+        data_tests: [unique, not_null]
+      - name: dt
+        data_tests: [not_null]
+  - name: stg_wms_picks
+    columns:
+      - name: wms_record_id
+        data_tests: [unique, not_null]
+      - name: dt
+        data_tests: [not_null]
+  - name: stg_carrier_events
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: dt
+        data_tests: [not_null]
+  - name: dim_merchants
+    columns:
+      - name: merchant_key
+        data_tests: [unique, not_null]
+  - name: dim_carriers
+    columns:
+      - name: carrier_key
+        data_tests: [unique, not_null]
+  - name: dim_routes
+    columns:
+      - name: route_key
+        data_tests: [unique, not_null]
+  - name: dim_date
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+  - name: fct_shipments
+    columns:
+      - name: shipment_key
+        data_tests: [unique, not_null]
+      - name: merchant_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_merchants')
+                field: merchant_key
+      - name: carrier_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_carriers')
+                field: carrier_key
+      - name: route_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_routes')
+                field: route_key
+      - name: order_date_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: delivery_date_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+  - name: fct_delivery_events
+    columns:
+      - name: event_key
+        data_tests: [unique, not_null]
+      - name: shipment_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_shipments')
+                field: shipment_key
+      - name: event_date_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key

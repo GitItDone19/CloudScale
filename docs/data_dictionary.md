@@ -1,5 +1,11 @@
 # CloudScale Data Dictionary & Schema Contracts
 
+> This document includes the target design. For the implemented dbt models and
+> exact metric definitions, see [Analytics modeling](ANALYTICS_MODELING.md).
+> The current implementation keeps original currencies and measures on-time
+> delivery; FX conversion, profitability, route distance, and in-full delivery
+> are not supported by the available inputs.
+
 ## 1. Overview & Data Architecture
 
 This document defines the schema contracts, business logic, and dimensional models for the **LogiScale Express** logistics data platform.

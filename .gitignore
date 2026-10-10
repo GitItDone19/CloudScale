@@ -38,6 +38,8 @@ sa-key*.json
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
+*.duckdb
+*.duckdb.wal
 
 # Airflow
 airflow/logs/

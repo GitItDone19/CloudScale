@@ -1,0 +1,10 @@
+version: 2
+sources:
+  - name: silver
+    database: "{{ target.project if target.type == 'bigquery' else target.database }}"
+    schema: raw_staging
+    tables:
+      - name: postgres_orders
+      - name: postgres_merchants
+      - name: wms_picks
+      - name: carrier_events

@@ -40,9 +40,10 @@ CloudScale is a hands-on data engineering project that brings these inputs into 
 | Local Bronze ingestion | Implemented and tested |
 | PySpark validation, deduplication, and Silver | Implemented locally — phase 5 |
 | BigQuery staging setup | Implemented and tested offline; live deployment pending |
-| dbt, full orchestration, CI, dashboards | Planned — phases 7–12 |
+| dbt dimensions, facts, and marts | Implemented and tested locally; BigQuery execution pending |
+| Full orchestration, CI, dashboards | Planned — phases 8–12 |
 
-Extractors currently read **generated local files**. Live PostgreSQL, FTP, webhook endpoints, and GCS uploads are future integrations. Checks run locally; automated CI is planned.
+Extractors currently read **generated local files**. Live PostgreSQL, FTP, and webhook endpoints are future integrations. Silver publishing to GCS is implemented with offline tests; live deployment remains pending. Checks run locally; automated CI is planned.
 
 ## Architecture
 
@@ -54,8 +55,8 @@ The **medallion architecture** gives each data layer a specific purpose:
 | --- | --- | --- | --- |
 | **Bronze** | Preserve original input for replay | Local files today; GCS planned | Warehouse CSV with its invalid weights intact |
 | **Silver** | Validate, standardize, deduplicate | PySpark + Parquet, local | Events with valid IDs and timestamps |
-| **Gold** | Connect business entities | BigQuery + dbt, planned | Shipment facts linked to carrier dimensions |
-| **Analytics marts** | Produce focused business measures | dbt + BI, planned | Daily carrier performance and route margins |
+| **Gold** | Connect business entities | dbt tested in DuckDB; BigQuery execution pending | Shipment facts linked to carrier dimensions |
+| **Analytics marts** | Produce focused business measures | dbt tested locally; BI planned | Daily carrier performance and warehouse handling times |
 
 A **dead-letter queue (DLQ)** stores rejected rows and their error reasons for investigation. Airflow will coordinate the full pipeline and retry failures. The current DAG is a small infrastructure healthcheck.
 
@@ -181,6 +182,18 @@ The configured Airflow UI is at [localhost:8080](http://localhost:8080), with lo
 
 **Validation boundary:** Compose configuration validation has passed. Image builds, container startup, and healthcheck DAG execution remain unverified. Configuration validity alone does not guarantee a running stack.
 
+## Build analytics with dbt
+
+The dbt project joins cleaned Silver data into merchant, carrier, route, and date
+dimensions, shipment and delivery-event facts, and two business marts. It handles
+late arrivals using ingestion-date lookbacks and retains unmatched records with
+flags. A local DuckDB build requires no Google Cloud account.
+
+Follow the [analytics modeling guide](docs/ANALYTICS_MODELING.md) to load local
+Silver and run `dbt build`. The guide explains model grains, metric denominators,
+incremental behavior, and BigQuery deployment. Profitability and OTIF are not
+claimed because the current sources lack freight costs and item quantities.
+
 ## Learning roadmap
 
 | Phase | Focus | Progress |
@@ -191,7 +204,7 @@ The configured Airflow UI is at [localhost:8080](http://localhost:8080), with lo
 | 4 | Bronze storage and ingestion | Implemented and tested locally |
 | 5 | PySpark cleansing and Silver datasets | Implemented locally |
 | 6 | BigQuery datasets and staging | Setup implemented; cloud verification pending |
-| 7 | dbt dimensional models and marts | Planned |
+| 7 | dbt dimensional models and marts | Implemented and tested locally; cloud execution pending |
 | 8 | Full Airflow orchestration | Planned |
 | 9 | Data quality and failure alerts | Planned |
 | 10 | GitHub Actions CI/CD | Planned |
@@ -211,6 +224,7 @@ CloudScale/
 ├── ingestion/                       # Local Bronze landing and extractors
 ├── spark/                           # Silver jobs, schemas, quality rules, output helpers
 ├── warehouse/                       # BigQuery setup, Silver upload, guarded verification
+├── dbt/                             # Staging, dimensions, incremental facts, analytics marts
 ├── docker/                          # Airflow and Spark image definitions
 ├── docs/
 │   ├── assets/                      # README diagrams + regeneration script
@@ -220,16 +234,17 @@ CloudScale/
 │   └── PHASE_5_REPORT.md
 ├── tests/
 │   ├── unit/                        # Generator and ingestion tests
-│   └── integration/                 # DAG syntax validation
+│   └── integration/                 # DAG syntax, Parquet, warehouse, and dbt checks
 ├── .env.example                     # Example local configuration
 ├── docker-compose.yml               # Local service topology
 ├── Makefile                         # Developer shortcuts
 ├── requirements.txt                 # Full project dependencies
 ├── requirements-spark.txt           # Minimal native Spark/test dependencies
-└── requirements-warehouse.txt       # Warehouse SDK and validation dependencies
+├── requirements-warehouse.txt       # Warehouse SDK and validation dependencies
+└── requirements-dbt.txt             # dbt Core, BigQuery, and local DuckDB adapters
 ```
 
-The `dbt/` project and `.github/workflows/` are planned additions. Generated data and credentials are excluded from version control.
+The `.github/workflows/` automation is a planned addition. Generated data and credentials are excluded from version control.
 
 ## Documentation
 
@@ -240,6 +255,7 @@ The `dbt/` project and `.github/workflows/` are planned additions. Generated dat
 | [Phase 3 and 4 report](docs/PHASE_3_4_REPORT.md) | What was implemented, tested, and what remains |
 | [Phase 5 guide](docs/PHASE_5_REPORT.md) | Spark setup, rules, outputs, reruns, and limitations |
 | [Warehouse setup guide](docs/WAREHOUSE_SETUP.md) | Offline plans, cloud prerequisites, uploads, query limits, and validation |
+| [Analytics modeling guide](docs/ANALYTICS_MODELING.md) | Local dbt builds, late-data reconciliation, metric definitions, and cloud deployment |
 | [Visual sources](docs/assets/generate_visuals.py) | Regenerate all four SVGs with `python docs/assets/generate_visuals.py` |
 
 The architecture documents describe the target system. The status table above describes the current implementation.

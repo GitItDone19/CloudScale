@@ -1,0 +1,5 @@
+carrier_id,carrier_name,service_level,agreed_sla_hours
+DHL_EXPRESS,DHL Express Europe,EXPRESS,24
+FEDEX_EU,FedEx European Logistics,EXPRESS,36
+CHRONOPOST,Chronopost France,STANDARD,48
+DPD_LOCAL,DPD Continental Network,GROUND,72

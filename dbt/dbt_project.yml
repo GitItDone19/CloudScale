@@ -1,0 +1,26 @@
+name: cloudscale
+version: '1.0.0'
+config-version: 2
+profile: cloudscale
+model-paths: [models]
+macro-paths: [macros]
+seed-paths: [seeds]
+test-paths: [tests]
+clean-targets: [target, dbt_packages]
+models:
+  cloudscale:
+    staging:
+      +schema: analytics_core
+    intermediate:
+      +materialized: ephemeral
+    core:
+      +schema: analytics_core
+      +materialized: table
+    marts:
+      +schema: analytics_marts
+      +materialized: table
+seeds:
+  cloudscale:
+    +schema: analytics_core
+flags:
+  send_anonymous_usage_stats: false

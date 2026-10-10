@@ -1,0 +1,18 @@
+cloudscale:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('CLOUDSCALE_DUCKDB_PATH', 'data/analytics.duckdb') }}"
+      schema: analytics_core
+      threads: 1
+    bigquery:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID', 'cloudscale-unconfigured') }}"
+      dataset: analytics_core
+      location: "{{ env_var('BQ_LOCATION', 'US') }}"
+      threads: 1
+      maximum_bytes_billed: 104857600
+      job_execution_timeout_seconds: 300
+      job_retries: 1

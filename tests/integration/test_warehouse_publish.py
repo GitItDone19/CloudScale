@@ -59,6 +59,28 @@ def test_parquet_contract_and_canonical_names(silver):
     assert all(len(item["sha256"]) == 64 for item in uploads)
 
 
+def test_local_loader_validates_before_replacing_tables(silver, tmp_path):
+    duckdb = pytest.importorskip("duckdb")
+    from warehouse.local_analytics import load_silver
+
+    database = tmp_path / "local.duckdb"
+    assert load_silver(silver, database) == {source: 0 for source in STRING_FIELDS}
+    with duckdb.connect(str(database)) as conn:
+        conn.execute(
+            "insert into raw_staging.postgres_orders (order_id) values ('KEEP')"
+        )
+    (silver / "wms_picks" / "dt=2026-10-01" / "_SUCCESS").unlink()
+    with pytest.raises(ValueError, match="completion marker"):
+        load_silver(silver, database)
+    with duckdb.connect(str(database)) as conn:
+        assert (
+            conn.execute("select order_id from raw_staging.postgres_orders").fetchone()[
+                0
+            ]
+            == "KEEP"
+        )
+
+
 def test_failed_audit_rejected_before_upload(silver):
     audit = silver / "_audit" / "dt=2026-10-01" / "shipments.json"
     data = json.loads(audit.read_text())
