@@ -8,6 +8,9 @@ function Invoke-Git {
 
 $branch = git rev-parse --abbrev-ref HEAD
 
+# Record the push time so every run has something to commit
+Add-Content -Path "push-log.txt" -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss") -Encoding utf8
+
 Invoke-Git add -A
 
 if (git status --porcelain) {
